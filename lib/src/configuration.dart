@@ -31,6 +31,7 @@ class Configuration {
   String? logoPath;
   String? executableFileName;
   List<String>? signToolOptions;
+  List<String>? dartDefines;
   late Iterable<String> protocolActivation;
   String? executionAlias;
   String? fileExtension;
@@ -110,6 +111,9 @@ class Configuration {
     publisher = _args['publisher'] ?? yaml['publisher'];
     identityName = _args['identity-name'] ?? yaml['identity_name'];
     logoPath = _args['logo-path'] ?? yaml['logo_path'];
+
+    print(_args['dart-define']);
+    dartDefines = _args['dart-define'];
     final String? signToolOptionsConfig =
         (_args['signtool-options'] ?? yaml['signtool_options'])?.toString();
     if (signToolOptionsConfig != null && signToolOptionsConfig.isNotEmpty) {
@@ -271,6 +275,7 @@ class Configuration {
     _logger.trace('parsing cli arguments');
 
     ArgParser parser = ArgParser()
+      ..addMultiOption('dart-define')
       ..addOption('certificate-password', abbr: 'p')
       ..addOption('certificate-path', abbr: 'c')
       ..addOption('version')

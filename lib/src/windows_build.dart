@@ -17,6 +17,12 @@ class WindowsBuild {
     List<String> buildWindowsArguments = ['build', 'windows'];
     if (_config.createWithDebugBuildFiles) buildWindowsArguments.add('--debug');
 
+    if (_config.dartDefines?.isNotEmpty ?? false) {
+      for (String x in _config.dartDefines!) {
+        buildWindowsArguments.add('--dart-define=' + x);
+      }
+    }
+
     Progress loggerProgress = _logger
         .progress('running "flutter ${buildWindowsArguments.join(' ')}"');
 
