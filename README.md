@@ -7,9 +7,7 @@
   align="right">
 </a>
 
-[![pub package](https://img.shields.io/pub/v/msix.svg?color=blue)](https://pub.dev/packages/msix) [![MSIX toolkit package](https://img.shields.io/github/v/tag/microsoft/MSIX-Toolkit?color=blue&label=MSIX-Toolkit)](https://github.com/microsoft/MSIX-Toolkit) [![issues-closed](https://img.shields.io/github/issues-closed/YehudaKremer/msix?color=green)](https://github.com/YehudaKremer/msix/issues?q=is%3Aissue+is%3Aclosed) [![issues-open](https://img.shields.io/github/issues-raw/YehudaKremer/msix)](https://github.com/YehudaKremer/msix/issues)
-
-<!-- [![Codemagic build status](https://api.codemagic.io/apps/61fc249977f79ce332414c45/61fc249977f79ce332414c44/status_badge.svg)](https://codemagic.io/apps/61fc249977f79ce332414c45/61fc249977f79ce332414c44/latest_build) -->
+[![pub package](https://img.shields.io/pub/v/msix.svg?color=blue)](https://pub.dev/packages/msix) [![MSIX toolkit package](https://img.shields.io/github/v/tag/microsoft/MSIX-Toolkit?color=blue&label=MSIX-Toolkit)](https://github.com/microsoft/MSIX-Toolkit) [![issues-closed](https://img.shields.io/github/issues-closed/YehudaKremer/msix?color=green)](https://github.com/YehudaKremer/msix/issues?q=is%3Aissue+is%3Aclosed) [![issues-open](https://img.shields.io/github/issues-raw/YehudaKremer/msix)](https://github.com/YehudaKremer/msix/issues) [![Codemagic build status](https://api.codemagic.io/apps/61fc249977f79ce332414c45/61fc249977f79ce332414c44/status_badge.svg)](https://codemagic.io/apps/61fc249977f79ce332414c45/61fc249977f79ce332414c44/latest_build)
 
 [MSIX] is a Windows app packaging format from Microsoft that combines the best
 features of MSI, .appx, App-V, and ClickOnce to provide a modern and reliable
@@ -33,7 +31,7 @@ PS c:\src\flutter_project> flutter pub add --dev msix
 To create a MSIX installer, run the following command:
 
 ```console
-PS c:\src\flutter_project> flutter pub run msix:create
+PS c:\src\flutter_project> dart run msix:create
 ```
 
 ## ⚙️ Configuring your installer
@@ -78,20 +76,24 @@ See [Configurations Examples And Use Cases].
 | `execution_alias`                   | `--execution-alias`             | [Execution alias] command (cmd) that will activate the app.                                       | `myapp`                                     |
 | `enable_at_startup`                 | `--enable-at-startup`           | App start at startup or user log-in.                                                              | `true`                                      |
 | `store`                             | `--store`                       | Generate a MSIX file for publishing to the Microsoft Store.                                       | `false`                                     |
+| `os_min_version`                    | `--os-min-version`              | Set minimum OS version, default is `10.0.17763.0`                                                 | `10.0.17763.0`                              |
 | [Toast Notifications configuration] |                                 |                                                                                                   |                                             |
+| [Startup Task configuration]        |                                 | pass the app values (args) on startup or user log-in                                              |                                             |
+| [Context Menu configuration]        |                                 | Use your context menu dll with your app                                                           |                                             |
 
 </details>
 
 <details>
 <summary>Build configuration (click to expand)</summary>
 
-| YAML name       | Command-line argument          | Description                                                                                                                      | Example              |
-| --------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `debug`         | `--debug` or `--release`       | Create MSIX from the **debug** or **release** build files (`\build\windows\runner\<Debug/Release>`), **release** is the default. | `true`               |
-| `output_path`   | `--output-path` `-o`           | The directory where the output MSIX file should be stored.                                                                       | `C:\src\some\folder` |
-| `output_name`   | `--output-name` `-n`           | The filename that should be given to the created MSIX file.                                                                      | `flutterApp_dev`     |
-| `architecture`  | `--architecture` `-h`          | Describes the architecture of the code in the package, `x64` or `x86`, `x64` is default.                                         | `x64`                |
-| `build_windows` | `--build-windows <true/false>` | If `false`, don't run the build command `flutter build windows`, default is `true`.                                              | `true`               |
+| YAML name            | Command-line argument          | Description                                                                                                                      | Example                                             |
+| -------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `debug`              | `--debug` or `--release`       | Create MSIX from the **debug** or **release** build files (`\build\windows\runner\<Debug/Release>`), **release** is the default. | `true`                                              |
+| `output_path`        | `--output-path` `-o`           | The directory where the output MSIX file should be stored.                                                                       | `C:\src\some\folder`                                |
+| `output_name`        | `--output-name` `-n`           | The filename that should be given to the created MSIX file.                                                                      | `flutterApp_dev`                                    |
+| `architecture`       | `--architecture` `-h`          | Describes the architecture of the code in the package, `x64` or `arm64`, `x64` is default.                                       | `x64`                                               |
+| `build_windows`      | `--build-windows <true/false>` | If `false`, don't run the build command `flutter build windows`, default is `true`.                                              | `true`                                              |
+| `windows_build_args` | `--windows-build-args`         | Any arguments for the `flutter build windows` command.                                                                           | `--obfuscate --split-debug-info=C:\Users\me\folder` |
 
 </details>
 
@@ -153,7 +155,7 @@ To create a App Installer file, first set the `publish_folder_path` configuratio
 then run the following command:
 
 ```console
-PS c:\src\flutter_project> flutter pub run msix:publish
+PS c:\src\flutter_project> dart run msix:publish
 ```
 
 <details>
@@ -192,7 +194,7 @@ We added the most common features of Msix in this package, however, if you need 
 First, create the unpackaged msix files with the following command
 
 ```console
-PS c:\src\flutter_project> flutter pub run msix:build
+PS c:\src\flutter_project> dart run msix:build
 ```
 
 Then edit the files that were created in the build folder.
@@ -200,7 +202,7 @@ Then edit the files that were created in the build folder.
 After that create a msix installer file from those files with the following command
 
 ```console
-PS c:\src\flutter_project> flutter pub run msix:pack
+PS c:\src\flutter_project> dart run msix:pack
 ```
 
 ---
@@ -227,4 +229,6 @@ Tags: `msi` `windows` `win10` `win11` `windows10` `windows11` `windows store` `w
 [configurations examples and use cases]: https://pub.dev/packages/msix/example
 [see how the msix version is determined]: https://github.com/YehudaKremer/msix/blob/main/doc/msix_version.md
 [toast notifications configuration]: https://github.com/YehudaKremer/msix/blob/main/doc/toast_notifications_configuration.md
+[startup task configuration]: https://github.com/YehudaKremer/msix/blob/main/doc/startup_task_configuration.md
+[context menu configuration]: https://github.com/YehudaKremer/msix/blob/main/doc/context_menu_configuration.md
 [apps for websites]: https://docs.microsoft.com/en-us/windows/uwp/launch-resume/web-to-app-linking

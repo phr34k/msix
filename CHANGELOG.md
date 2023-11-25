@@ -1,5 +1,120 @@
 # Changelog
 
+## 3.16.6
+
+- update MaxVersionTested
+
+## 3.16.4
+
+- permanent fix for [#235](https://github.com/YehudaKremer/msix/issues/235)
+
+## 3.16.3
+
+- temporary fix for [#235](https://github.com/YehudaKremer/msix/issues/235)
+
+## 3.16.2
+
+- fix [#232](https://github.com/YehudaKremer/msix/issues/232)
+
+## 3.16.1
+
+- fix [#178](https://github.com/YehudaKremer/msix/issues/178)
+- update `MaxVersionTested` value
+
+## 3.16.0
+
+- add Context menu extension ([#208](https://github.com/YehudaKremer/msix/issues/208))
+
+## 3.15.1
+
+- fix [#211](https://github.com/YehudaKremer/msix/issues/211)
+
+## 3.15.0
+
+- add support for `arm64` build folder layout [#205](https://github.com/YehudaKremer/msix/issues/205)
+
+### Breaking Changes
+
+- `architecture` config field is now accepts `x64` or `arm64` (instead of `x86`)
+
+## 3.14.2
+
+- fix [#203](https://github.com/YehudaKremer/msix/issues/203)
+
+## 3.14.0
+
+- fix [#201](https://github.com/YehudaKremer/msix/issues/201): use correct flutter executable (support [fvm](https://fvm.app/))
+
+## 3.13.3
+
+- fix [#181](https://github.com/YehudaKremer/msix/issues/181)
+
+## 3.13.2
+
+- get certificate publisher if using test certificate (fix [#159](https://github.com/YehudaKremer/msix/issues/159))
+
+## 3.13.1
+
+- fix [#197](https://github.com/YehudaKremer/msix/issues/197): locate msix assets path from script file directory
+
+## 3.13.0
+
+- fix [#139](https://github.com/YehudaKremer/msix/issues/139): remove Flutter SDK constraints
+
+## 3.12.3
+
+- fix [#196](https://github.com/YehudaKremer/msix/issues/196)
+
+## 3.12.2
+
+- brings back Isolates for faster icons generation (after remove them in `3.12.0`)
+
+## 3.12.1
+
+- fix [#175](https://github.com/YehudaKremer/msix/issues/175): `app_installer -> publish_folder_path` config field is now support absolute-path
+
+## 3.12.0
+
+- fix [#193](https://github.com/YehudaKremer/msix/issues/193): remove `isolate` to support Flutter version >=3.10.0 (Dart 3v)
+
+## 3.11.1
+
+- fix [#159](https://github.com/YehudaKremer/msix/issues/159)
+
+## 3.11.0
+
+- add `os_min_version` configuration
+
+## 3.10.1
+
+- add [startup task](https://github.com/YehudaKremer/msix/blob/main/doc/startup_task_configuration.md) configuration
+
+## 3.9.2
+
+- update `cli_util` dependency to `0.4.0`
+
+## 3.9.1
+
+- remove padding from generated icons (fix [#179](https://github.com/YehudaKremer/msix/issues/179))
+- fix pixelated icons
+
+## 3.8.4
+
+- add `screenshot` and `issue_tracker` to the package metadata
+
+## 3.8.2
+
+- fix [#180](https://github.com/YehudaKremer/msix/issues/180)
+
+## 3.8.1
+
+- fix [#178](https://github.com/YehudaKremer/msix/issues/178)
+
+## 3.8.0
+
+- update the [Image](https://pub.dev/packages/image) dependency package to version >=4.0.0
+- added `windows_build_args` config option, see "Build configuration" documentation table for more details
+
 ## 3.7.0
 
 - add full support for [SignTool](https://learn.microsoft.com/en-us/dotnet/framework/tools/signtool-exe) usage (addressing [#155](https://github.com/YehudaKremer/msix/pull/155#issue-1421291620)), see [examples page](https://github.com/YehudaKremer/msix/tree/main/example)

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:cli_util/cli_logging.dart';
 import 'package:console/console.dart';
 import 'package:get_it/get_it.dart';
@@ -8,7 +9,7 @@ import 'method_extensions.dart';
 import 'configuration.dart';
 
 RegExp _publisherRegex = RegExp(
-    '(CN|L|O|OU|E|C|S|STREET|T|G|I|SN|DC|SERIALNUMBER|(OID.(0|[1-9][0-9]*)(.(0|[1-9][0-9]*))+))=(([^,+="<>#;])+|".*")(, ((CN|L|O|OU|E|C|S|STREET|T|G|I|SN|DC|SERIALNUMBER|(OID.(0|[1-9][0-9]*)(.(0|[1-9][0-9]*))+))=(([^,+="<>#;])+|".*")))*');
+    '(CN|L|O|OU|E|C|S|ST|STREET|T|G|I|SN|DC|SERIALNUMBER|(OID.(0|[1-9][0-9]*)(.(0|[1-9][0-9]*))+))=(([^,+="<>#;])+|".*")(, ((CN|L|O|OU|E|C|S|ST|STREET|T|G|I|SN|DC|SERIALNUMBER|(OID.(0|[1-9][0-9]*)(.(0|[1-9][0-9]*))+))=(([^,+="<>#;])+|".*")))*');
 
 /// Handles the certificate sign functionality
 class SignTool {
@@ -19,31 +20,33 @@ class SignTool {
   Future<void> getCertificatePublisher() async {
     _logger.trace('getting certificate publisher');
 
-    String subject = '';
+    if (_config.publisher.isNullOrEmpty || _config.isTestCertificate) {
+      String subject = '';
 
-    if (_config.signToolOptions != null) {
-      if (_config.signToolOptions!.containsArgument('/sha1')) {
-        subject = await _getCertificateSubjectByThumbprint();
-      } else if (_config.signToolOptions!.containsArguments(['/n', '/r'])) {
-        subject = await _getCertificateSubjectBySubject();
-      } else if (_config.signToolOptions!.containsArgument('/i')) {
-        subject = await _getCertificateSubjectByIssuer();
-      } else if (_config.signToolOptions!.containsArgument('/f')) {
-        subject = await _getCertificateSubjectByFile(true);
+      if (isCustomSignCommand(_config.signToolOptions)) {
+        if (_config.signToolOptions!.containsArgument('/sha1')) {
+          subject = await _getCertificateSubjectByThumbprint();
+        } else if (_config.signToolOptions!.containsArguments(['/n', '/r'])) {
+          subject = await _getCertificateSubjectBySubject();
+        } else if (_config.signToolOptions!.containsArgument('/i')) {
+          subject = await _getCertificateSubjectByIssuer();
+        } else if (_config.signToolOptions!.containsArgument('/f')) {
+          subject = await _getCertificateSubjectByFile(true);
+        }
+      } else if (_config.certificatePath != null &&
+          _config.certificatePath!.isNotEmpty) {
+        subject = await _getCertificateSubjectByFile(false);
       }
-    } else if (_config.certificatePath != null &&
-        _config.certificatePath!.isNotEmpty) {
-      subject = await _getCertificateSubjectByFile(false);
+
+      if (subject.isNotEmpty) {
+        _config.publisher = subject;
+      }
     }
 
-    if (subject.isNotEmpty) {
-      _config.publisher = subject;
-    }
-
-    if (_config.publisher != null && _config.publisher!.isNotEmpty) {
-      _checkCertificateSubject(_config.publisher!);
-    } else {
+    if (_config.publisher.isNullOrEmpty) {
       _failToGetCertificateSubject();
+    } else {
+      _checkCertificateSubject(_config.publisher!);
     }
   }
 
@@ -85,7 +88,7 @@ class SignTool {
 
   Future<String> _getInstalledCertificateSubject(String searchCondition) async {
     ProcessResult certificateDetailsProcess = await _executePowershellCommand(
-        "dir -Recurse cert: | where {$searchCondition} | select -expandproperty Subject -First 1");
+        "\$env:PSModulePath = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine');dir -Recurse cert: | where {$searchCondition} | select -expandproperty Subject -First 1");
 
     String subject = (certificateDetailsProcess.stdout as String).trim();
 
@@ -149,7 +152,7 @@ class SignTool {
         await Process.run('powershell.exe', [
       '-NoProfile',
       '-NonInteractive',
-      "dir Cert:\\CurrentUser\\Root | Where-Object { \$_.Subject -eq  '${_config.publisher}'}"
+      "\$env:PSModulePath = [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine');dir Cert:\\CurrentUser\\Root | Where-Object { \$_.Subject -eq  '${_config.publisher}'}"
     ])
           ..exitOnError();
 
@@ -170,7 +173,7 @@ class SignTool {
         String installCertificateScript =
             'Import-PfxCertificate -FilePath "${_config.certificatePath}" -Password (ConvertTo-SecureString -String "${_config.certificatePassword}" -AsPlainText -Force) -CertStoreLocation Cert:\\LocalMachine\\Root';
         String installCertificateScriptPath =
-            '${_config.msixAssetsPath}/installCertificate.ps1';
+            p.join(_config.msixAssetsPath, 'installCertificate.ps1');
         await File(installCertificateScriptPath)
             .writeAsString(installCertificateScript);
 
@@ -201,12 +204,10 @@ class SignTool {
   Future<void> sign() async {
     _logger.trace('signing');
 
-    String signtoolPath =
-        '${_config.msixToolkitPath}/Redist.${_config.architecture}/signtool.exe';
-    List<String> signtoolOptions = ['/v'];
+    String signtoolPath = p.join(_config.msixToolkitPath, 'signtool.exe');
+    List<String> signtoolOptions = _config.signToolOptions ?? ['/v'];
 
-    if (_config.signToolOptions != null &&
-        _config.signToolOptions!.isNotEmpty) {
+    if (isCustomSignCommand(_config.signToolOptions)) {
       signtoolOptions = _config.signToolOptions!;
     } else if (_config.certificatePath != null) {
       switch (extension(_config.certificatePath!).toLowerCase()) {
@@ -245,4 +246,9 @@ class SignTool {
     ])
       ..exitOnError();
   }
+
+  static isCustomSignCommand(List<String>? signToolOptions) =>
+      signToolOptions != null &&
+      signToolOptions.isNotEmpty &&
+      signToolOptions.containsArguments(['/sha1', '/n', '/r', '/i', '/f']);
 }

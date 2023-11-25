@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:cli_util/cli_logging.dart';
 import 'package:get_it/get_it.dart';
 import 'capabilities.dart';
@@ -27,6 +28,8 @@ class AppxManifest {
           xmlns:iot="http://schemas.microsoft.com/appx/manifest/iot/windows10" 
           xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" 
           xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2" 
+          xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+          xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
           xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6" 
           xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" 
           xmlns:rescap3="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/3" 
@@ -47,7 +50,7 @@ class AppxManifest {
       ${_config.languages!.map((language) => '<Resource Language="$language" />').join('')}
     </Resources>
     <Dependencies>
-      <TargetDeviceFamily Name="Windows.Desktop" MinVersion="${_config.osMinVersion}" MaxVersionTested="10.0.22000.1" />
+      <TargetDeviceFamily Name="Windows.Desktop" MinVersion="${_config.osMinVersion}" MaxVersionTested="10.0.22621.2506" />
     </Dependencies>
     <Capabilities>
       ${_getCapabilities()}
@@ -57,7 +60,7 @@ class AppxManifest {
         <uap:VisualElements BackgroundColor="transparent"
           DisplayName="${_config.displayName.toHtmlEscape()}" Square150x150Logo="Images\\Square150x150Logo.png"
           Square44x44Logo="Images\\Square44x44Logo.png" Description="${_config.appDescription.toHtmlEscape()}">
-          <uap:DefaultTile ShortName="${_config.displayName.toHtmlEscape()}" Square310x310Logo="Images\\LargeTile.png"
+          <uap:DefaultTile ShortName="${_getTileShortName(_config.displayName).toHtmlEscape()}" Square310x310Logo="Images\\LargeTile.png"
           Square71x71Logo="Images\\SmallTile.png" Wide310x150Logo="Images\\Wide310x150Logo.png">
             <uap:ShowNameOnTiles>
               <uap:ShowOn Tile="square150x150Logo"/>
@@ -76,7 +79,8 @@ class AppxManifest {
     //clear empty rows
     manifestContent = manifestContent.replaceAll('    \n', '');
 
-    String appxManifestPath = '${_config.buildFilesFolder}/AppxManifest.xml';
+    String appxManifestPath =
+        p.join(_config.buildFilesFolder, 'AppxManifest.xml');
     await File(appxManifestPath).writeAsString(manifestContent);
   }
 
@@ -87,14 +91,18 @@ class AppxManifest {
         !_config.toastActivatorCLSID.isNull ||
         (_config.appUriHandlerHosts != null &&
             _config.appUriHandlerHosts!.isNotEmpty) ||
-        _config.enableAtStartup) {
+        _config.enableAtStartup ||
+        _config.startupTask != null ||
+        _config.contextMenuConfiguration != null) {
       return '''<Extensions>
       ${!_config.executionAlias.isNull ? _getExecutionAliasExtension() : ''}
       ${_config.protocolActivation.isNotEmpty ? _getProtocolActivationExtension() : ''}
       ${!_config.fileExtension.isNull ? _getFileAssociationsExtension() : ''}
       ${!_config.toastActivatorCLSID.isNull ? _getToastNotificationActivationExtension() : ''}
-      ${_config.enableAtStartup ? _getStartupTaskExtension() : ''}
+      ${_config.enableAtStartup || _config.startupTask != null ? _getStartupTaskExtension() : ''}
       ${_config.appUriHandlerHosts != null && _config.appUriHandlerHosts!.isNotEmpty ? _getAppUriHandlerHostExtension() : ''}
+      ${_config.contextMenuConfiguration != null ? _getContextMenuExtension() : ''}
+      ${_config.contextMenuConfiguration?.comSurrogateServers.isNotEmpty == true || _config.toastActivatorCLSID != null ? _getComServers() : ''}
         </Extensions>''';
     } else {
       return '';
@@ -124,6 +132,21 @@ class AppxManifest {
     return protocolsActivation;
   }
 
+  /// Add extension section for context menu
+  String _getContextMenuExtension() {
+    return '''  <desktop4:Extension Category="windows.fileExplorerContextMenus">
+              <desktop4:FileExplorerContextMenus>
+                ${_config.contextMenuConfiguration!.items.map((item) {
+      return '''<desktop5:ItemType Type="${item.type}">
+                  ${item.commands.map((command) {
+        return '''<desktop5:Verb Id="${command.id.toHtmlEscape()}" Clsid="${command.clsid.toHtmlEscape()}" />''';
+      }).join('\n                  ')}
+                </desktop5:ItemType>''';
+    }).join('\n                ')}
+              </desktop4:FileExplorerContextMenus>
+            </desktop4:Extension>''';
+  }
+
   /// Add extension section for [_config.fileExtension]
   String _getFileAssociationsExtension() {
     return '''  <uap:Extension Category="windows.fileTypeAssociation">
@@ -139,21 +162,36 @@ class AppxManifest {
 
   /// Add extension section for "toast_activator" configurations
   String _getToastNotificationActivationExtension() {
-    return '''  <com:Extension Category="windows.comServer">
-          <com:ComServer>
-            <com:ExeServer Executable="${_config.executableFileName.toHtmlEscape()}" Arguments="${_config.toastActivatorArguments.toHtmlEscape()}" DisplayName="${_config.toastActivatorDisplayName.toHtmlEscape()}">
-              <com:Class Id="${_config.toastActivatorCLSID.toHtmlEscape()}"/>
-            </com:ExeServer>
-          </com:ComServer>
-        </com:Extension>
-        <desktop:Extension Category="windows.toastNotificationActivation">
+    return '''  <desktop:Extension Category="windows.toastNotificationActivation">
           <desktop:ToastNotificationActivation ToastActivatorCLSID="${_config.toastActivatorCLSID.toHtmlEscape()}"/>
         </desktop:Extension>''';
   }
 
+  String _getComServers() {
+    return '''  <com:Extension Category="windows.comServer">
+          <com:ComServer>
+             ${_config.toastActivatorCLSID != null ? '''<com:ExeServer Executable="${_config.executableFileName.toHtmlEscape()}" Arguments="${_config.toastActivatorArguments.toHtmlEscape()}" DisplayName="${_config.toastActivatorDisplayName.toHtmlEscape()}">
+              <com:Class Id="${_config.toastActivatorCLSID.toHtmlEscape()}"/>
+            </com:ExeServer>''' : ''}
+              ${_config.contextMenuConfiguration?.comSurrogateServers.map((item) {
+              return '''<com:SurrogateServer DisplayName="Context menu verb handler">
+                  <com:Class Id="${item.clsid}" Path="${p.basename(item.dllPath).toHtmlEscape()}" ThreadingModel="STA"/>
+                </com:SurrogateServer>''';
+            }).join('\n                ') ?? ''}
+          </com:ComServer>
+        </com:Extension>
+      ''';
+  }
+
   String _getStartupTaskExtension() {
-    return '''<desktop:Extension Category="windows.startupTask" Executable="${_config.executableFileName.toHtmlEscape()}" EntryPoint="Windows.FullTrustApplication">
-      <desktop:StartupTask TaskId="${_config.appName!.replaceAll('_', '')}" Enabled="true" DisplayName="${_config.displayName.toHtmlEscape()}"/>
+    final taskId =
+        _config.startupTask?.taskId ?? _config.appName?.replaceAll('_', '');
+    final enabled = _config.startupTask?.enabled ?? true;
+    final parameters = _config.startupTask?.parameters != null
+        ? 'uap10:Parameters="${_config.startupTask?.parameters}"'
+        : '';
+    return '''<desktop:Extension Category="windows.startupTask" Executable="${_config.executableFileName.toHtmlEscape()}" EntryPoint="Windows.FullTrustApplication" $parameters>
+      <desktop:StartupTask TaskId="$taskId" Enabled="$enabled" DisplayName="${_config.displayName.toHtmlEscape()}"/>
       </desktop:Extension>''';
   }
 
@@ -226,5 +264,13 @@ class AppxManifest {
     });
 
     return capabilitiesString;
+  }
+
+  String? _getTileShortName(String? text) {
+    if (text != null && text.length > 40) {
+      return '${text.substring(0, 37)}...';
+    }
+
+    return text;
   }
 }

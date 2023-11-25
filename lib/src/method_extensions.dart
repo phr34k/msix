@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_brace_in_string_interps
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:cli_util/cli_logging.dart';
@@ -58,5 +60,14 @@ extension ProcessResultExtensions on ProcessResult {
       GetIt.I<Logger>().stderr(this.stdout);
       throw this.stderr;
     }
+  }
+}
+
+extension UniqueList<E, Id> on List<E> {
+  List<E> unique([Id Function(E element)? id, bool inplace = true]) {
+    final ids = <dynamic>{};
+    var list = inplace ? this : List<E>.from(this);
+    list.retainWhere((x) => ids.add(id != null ? id(x) : x as Id));
+    return list;
   }
 }

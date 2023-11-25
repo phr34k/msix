@@ -1,12 +1,13 @@
 import 'dart:io';
-
+import 'package:msix/src/context_menu_configuration.dart';
+import 'package:path/path.dart' as p;
 import 'package:cli_util/cli_logging.dart';
 import 'package:get_it/get_it.dart';
 import 'package:msix/src/appx_manifest.dart';
 import 'package:msix/src/configuration.dart';
 import 'package:test/test.dart';
 
-const tempFolderPath = 'test/appx_manifest_temp';
+var tempFolderPath = p.join('test', 'runner', 'appx_manifest_temp');
 
 void main() {
   late Configuration config;
@@ -35,20 +36,21 @@ void main() {
 
     GetIt.I.registerSingleton<Configuration>(config);
 
-    await Directory('$tempFolderPath/').create(recursive: true);
+    await Directory(tempFolderPath).create(recursive: true);
   });
 
   tearDown(() async {
     GetIt.I.reset();
 
-    if (await Directory('$tempFolderPath/').exists()) {
-      await Directory('$tempFolderPath/').delete(recursive: true);
+    if (await Directory(tempFolderPath).exists()) {
+      await Directory(tempFolderPath).delete(recursive: true);
     }
   });
 
   test('manifest created', () async {
     await AppxManifest().generateAppxManifest();
-    expect(await File('$tempFolderPath/AppxManifest.xml').exists(), true);
+    expect(
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).exists(), true);
   });
 
   test('identityName is valid', () async {
@@ -56,7 +58,7 @@ void main() {
     config.identityName = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains('<Identity Name="$testValue"'),
         true);
   });
@@ -66,7 +68,7 @@ void main() {
     config.publisher = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains('Publisher="$testValue"'),
         true);
   });
@@ -76,7 +78,7 @@ void main() {
     config.publisherName = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains(
                 '<PublisherDisplayName>$testValue</PublisherDisplayName>'),
         true);
@@ -87,7 +89,7 @@ void main() {
     config.msixVersion = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains('Version="$testValue"'),
         true);
   });
@@ -97,7 +99,7 @@ void main() {
     config.appName = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains('Id="${testValue.replaceAll('_', '')}"'),
         true);
   });
@@ -107,7 +109,7 @@ void main() {
     config.appDescription = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('<Description>$testValue</Description>'),
         true);
     expect(manifestContent.contains('Description="$testValue"'), true);
@@ -118,7 +120,7 @@ void main() {
     config.displayName = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('<DisplayName>$testValue</DisplayName>'),
         true);
     expect(manifestContent.contains('DisplayName="$testValue"'), true);
@@ -131,7 +133,7 @@ void main() {
     config.architecture = testValue;
     await AppxManifest().generateAppxManifest();
     expect(
-        (await File('$tempFolderPath/AppxManifest.xml').readAsString())
+        (await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString())
             .contains('ProcessorArchitecture="$testValue"'),
         true);
   });
@@ -141,7 +143,7 @@ void main() {
     config.executableFileName = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('Executable="$testValue'), true);
   });
 
@@ -151,7 +153,7 @@ void main() {
     await AppxManifest().generateAppxManifest();
 
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(
         manifestContent.contains(
             '<desktop:ExecutionAlias Alias="${testValue.toLowerCase()}.exe" />'),
@@ -163,7 +165,7 @@ void main() {
     config.protocolActivation = [testValue];
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('<uap:Protocol Name="$testValue">'), true);
     expect(
         manifestContent.contains(
@@ -177,7 +179,7 @@ void main() {
     config.fileExtension = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(
         manifestContent
             .contains('<uap:FileType>.fileExtension_test1</uap:FileType>'),
@@ -200,7 +202,7 @@ void main() {
     await AppxManifest().generateAppxManifest();
 
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('Executable="$testValue'), true);
     expect(
         manifestContent.contains(
@@ -212,7 +214,7 @@ void main() {
     config.capabilities = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('<uap:Capability Name="videosLibrary" />'),
         true);
     expect(manifestContent.contains('<DeviceCapability Name="microphone" />'),
@@ -226,7 +228,7 @@ void main() {
     config.languages = ['en-us', 'he-il'];
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(manifestContent.contains('<Resource Language="en-us" />'), true);
     expect(manifestContent.contains('<Resource Language="he-il" />'), true);
   });
@@ -236,7 +238,7 @@ void main() {
     config.toastActivatorCLSID = testValue;
     await AppxManifest().generateAppxManifest();
     var manifestContent =
-        await File('$tempFolderPath/AppxManifest.xml').readAsString();
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
     expect(
         manifestContent.contains(
             '<com:ExeServer Executable="executableFileName_test" Arguments="----AppNotificationActivationServer" DisplayName="Toast activator">'),
@@ -246,5 +248,58 @@ void main() {
             '<desktop:ToastNotificationActivation ToastActivatorCLSID="$testValue"/>'),
         true);
     expect(manifestContent.contains('<com:Class Id="$testValue"/>'), true);
+  });
+
+  test('context-menu is valid', () async {
+    var testGuid = 'ba40803c-736a-41f0-ba7c-cdb3eaed7496';
+    var testGuid2 = 'ba40803c-736a-41f0-ba7c-cdb3eaed7497';
+
+    config.contextMenuConfiguration =
+        ContextMenuConfiguration(dllPath: 'test_dll.dll', items: [
+      ContextMenuItem(
+        type: '*',
+        commands: [
+          ContextMenuItemCommand(id: 'test1', clsid: testGuid),
+        ],
+      ),
+      ContextMenuItem(
+        type: 'Directory',
+        commands: [
+          ContextMenuItemCommand(id: 'test1', clsid: testGuid),
+        ],
+      ),
+      ContextMenuItem(
+        type: 'Directory\\Background',
+        commands: [
+          ContextMenuItemCommand(
+              id: 'test2', clsid: testGuid2, customDllPath: 'test_dll2.dll'),
+        ],
+      ),
+    ]);
+
+    await AppxManifest().generateAppxManifest();
+
+    var manifestContent =
+        await File(p.join(tempFolderPath, 'AppxManifest.xml')).readAsString();
+
+    expect(
+      manifestContent,
+      stringContainsInOrder(
+        config.contextMenuConfiguration!.items.map((e) {
+          return '''<desktop5:ItemType Type="${e.type}">
+                  ${e.commands.map((e) => '''<desktop5:Verb Id="${e.id}" Clsid="${e.clsid}" />''').join('\n')}
+                </desktop5:ItemType>''';
+        }).toList(),
+      ),
+    );
+
+    expect(
+      manifestContent,
+      stringContainsInOrder(
+        config.contextMenuConfiguration!.comSurrogateServers.map((e) {
+          return '<com:Class Id="${e.clsid}" Path="${p.basename(e.dllPath)}" ThreadingModel="STA"/>';
+        }).toList(),
+      ),
+    );
   });
 }

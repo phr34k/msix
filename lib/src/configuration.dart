@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:msix/src/context_menu_configuration.dart';
+import 'package:path/path.dart' as p;
 import 'package:args/args.dart';
 import 'package:cli_util/cli_logging.dart';
 import 'package:get_it/get_it.dart';
@@ -8,6 +10,7 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:yaml/yaml.dart';
 import 'command_line_converter.dart';
 import 'method_extensions.dart';
+import 'sign_tool.dart';
 
 /// Handles loading and validating the configuration values
 class Configuration {
@@ -21,7 +24,7 @@ class Configuration {
   String? msixVersion;
   String? appDescription;
   String buildFilesFolder =
-      '${Directory.current.path}/build/windows/runner/Release';
+      p.join(Directory.current.path, 'build', 'windows', 'runner', 'Release');
   String? certificatePath;
   String? certificatePassword;
   String? publisher;
@@ -31,6 +34,7 @@ class Configuration {
   String? logoPath;
   String? executableFileName;
   List<String>? signToolOptions;
+  List<String>? windowsBuildArgs;
   List<String>? dartDefines;
   late Iterable<String> protocolActivation;
   String? executionAlias;
@@ -53,16 +57,20 @@ class Configuration {
   bool trimLogo = true;
   bool createWithDebugBuildFiles = false;
   bool enableAtStartup = false;
+  StartupTask? startupTask;
   Iterable<String>? appUriHandlerHosts;
   Iterable<String>? languages;
-  String get defaultsIconsFolderPath => '$msixAssetsPath/icons';
-  String get msixToolkitPath => '$msixAssetsPath/MSIX-Toolkit';
+  String get defaultsIconsFolderPath => p.join(msixAssetsPath, 'icons');
+  String get msixToolkitPath =>
+      p.join(msixAssetsPath, 'MSIX-Toolkit', 'Redist.x64');
   String get msixPath =>
-      '${outputPath ?? buildFilesFolder}/${outputName ?? appName}.msix';
-  String get appInstallerPath =>
-      '$publishFolderPath/${basename(msixPath).replaceAll('.msix', '.appinstaller')}';
+      p.join(outputPath ?? buildFilesFolder, '${outputName ?? appName}.msix');
+  String get appInstallerPath => p.join(publishFolderPath!,
+      basename(msixPath).replaceAll('.msix', '.appinstaller'));
   String pubspecYamlPath = "pubspec.yaml";
   String osMinVersion = '10.0.17763.0';
+  bool isTestCertificate = false;
+  ContextMenuConfiguration? contextMenuConfiguration;
 
   Configuration(this._arguments);
 
@@ -102,15 +110,16 @@ class Configuration {
         yaml['store']?.toString().toLowerCase() == 'true';
     createWithDebugBuildFiles = _args.wasParsed('debug') ||
         yaml['debug']?.toString().toLowerCase() == 'true';
-    if (createWithDebugBuildFiles) {
-      buildFilesFolder = buildFilesFolder.replaceFirst('Release', 'Debug');
-    }
+
     displayName = _args['display-name'] ?? yaml['display_name'];
     publisherName =
         _args['publisher-display-name'] ?? yaml['publisher_display_name'];
     publisher = _args['publisher'] ?? yaml['publisher'];
     identityName = _args['identity-name'] ?? yaml['identity_name'];
     logoPath = _args['logo-path'] ?? yaml['logo_path'];
+    osMinVersion =
+        _args['os-min-version'] ?? yaml['os_min_version'] ?? osMinVersion;
+
 
     print(_args['dart-define']);
     dartDefines = _args['dart-define'];
@@ -119,6 +128,13 @@ class Configuration {
     if (signToolOptionsConfig != null && signToolOptionsConfig.isNotEmpty) {
       CommandLineConverter commandLineConverter = CommandLineConverter();
       signToolOptions = commandLineConverter.convert(signToolOptionsConfig);
+    }
+
+    final String? windowsBuildArgsConfig =
+        (_args['windows-build-args'] ?? yaml['windows_build_args'])?.toString();
+    if (windowsBuildArgsConfig != null && windowsBuildArgsConfig.isNotEmpty) {
+      CommandLineConverter commandLineConverter = CommandLineConverter();
+      windowsBuildArgs = commandLineConverter.convert(windowsBuildArgsConfig);
     }
 
     //CommandLineConverter
@@ -133,6 +149,11 @@ class Configuration {
     appUriHandlerHosts = _getAppUriHandlerHosts(yaml);
     enableAtStartup = _args.wasParsed('enable-at-startup') ||
         yaml['enable_at_startup']?.toString().toLowerCase() == 'true';
+
+    // A more advanced version of 'enable_at_startup'
+    startupTask = yaml['startup_task'] != null
+        ? StartupTask.fromMap(yaml['startup_task'], appName!)
+        : null;
 
     // toast activator configurations
     dynamic toastActivatorYaml = yaml['toast_activator'] ?? YamlMap();
@@ -169,6 +190,17 @@ class Configuration {
                     ?.toString()
                     .toLowerCase() ==
                 'true';
+
+    // context menu configurations
+    dynamic contextMenuYaml = yaml['context_menu'];
+
+    bool skipContextMenu = _args.wasParsed('skip-context-menu');
+
+    contextMenuConfiguration = contextMenuYaml != null &&
+            contextMenuYaml is YamlMap &&
+            !skipContextMenu
+        ? ContextMenuConfiguration.fromYaml(contextMenuYaml)
+        : null;
   }
 
   /// Validate the configuration values and set default values
@@ -215,6 +247,14 @@ class Configuration {
     }
     if (msixVersion.isNull) msixVersion = '1.0.0.0';
     if (architecture.isNull) architecture = 'x64';
+
+    buildFilesFolder = await _getBuildFilesFolder();
+
+    if (createWithDebugBuildFiles) {
+      buildFilesFolder = buildFilesFolder.replaceFirst('Release', 'Debug');
+    }
+    _logger.trace('pack files in build folder: $buildFilesFolder');
+
     languages ??= ['en-us'];
 
     if (!RegExp(r'^(\*|\d+(\.\d+){3,3}(\.\*)?)$').hasMatch(msixVersion!)) {
@@ -229,7 +269,9 @@ class Configuration {
       throw '"publisher display name" is too long, it should be less than 256 characters';
     }
 
-    if (!certificatePath.isNull || signToolOptions != null || store) {
+    if (!certificatePath.isNull ||
+        (SignTool.isCustomSignCommand(signToolOptions)) ||
+        store) {
       if (!certificatePath.isNull) {
         if (!(await File(certificatePath!).exists())) {
           throw 'The file certificate not found in: $certificatePath, check "msix_config: certificate_path" at pubspec.yaml';
@@ -242,12 +284,75 @@ class Configuration {
       }
     } else {
       // if no certificate was chosen then use test certificate
-      certificatePath = '$msixAssetsPath/test_certificate.pfx';
+      certificatePath = p.join(msixAssetsPath, 'test_certificate.pfx');
       certificatePassword = '1234';
+      isTestCertificate = true;
     }
 
-    if (!['x86', 'x64'].contains(architecture)) {
-      throw 'Architecture can be "x86" or "x64", check "msix_config: architecture" at pubspec.yaml';
+    if (!['x64', 'arm64'].contains(architecture)) {
+      throw 'Architecture can be "x64" or "arm64", check "msix_config: architecture" at pubspec.yaml';
+    }
+
+    if (contextMenuConfiguration != null) {
+      if (!await File(contextMenuConfiguration!.dllPath).exists()) {
+        throw 'The context menu dll file not found in: ${contextMenuConfiguration!.dllPath}, check "msix_config: context_menu: dll_path" at pubspec.yaml';
+      }
+
+      if (contextMenuConfiguration!.items.isEmpty) {
+        throw 'Context menu items is empty, check "msix_config: context_menu: items" at pubspec.yaml';
+      }
+
+      for (var item in contextMenuConfiguration!.items) {
+        if (item.type.isNullOrEmpty) {
+          throw 'Context menu item type is empty';
+        }
+
+        if (item.commands.isEmpty) {
+          throw 'Context menu item commands is empty';
+        }
+
+        if (contextMenuConfiguration!.items
+                .where((element) => element.type == item.type)
+                .length >
+            1) {
+          throw 'Found same context menu item type more than once, type must be unique for each item. Type: ${item.type}';
+        }
+
+        for (var command in item.commands) {
+          if (command.id.isNullOrEmpty) {
+            throw 'Context menu command id is empty';
+          }
+
+          if (command.clsid.isNullOrEmpty) {
+            throw 'Context menu command clsid is empty';
+          }
+
+          if (command.customDllPath != null &&
+              !await File(command.customDllPath!).exists()) {
+            throw 'The context menu command custom dll file not found in: ${command.customDllPath}, check "msix_config: context_menu: items: commands: custom_dll" at pubspec.yaml';
+          }
+
+          if (command.clsid == toastActivatorCLSID) {
+            throw 'Context menu command clsid cannot be the same as toast activator clsid, Clsid: ${command.clsid}';
+          }
+
+          if (item.commands
+                  .where((element) => element.clsid == command.clsid)
+                  .length >
+              1) {
+            throw 'Found same context menu command more than once in same type. Clsid: ${command.clsid}, Type: ${item.type}';
+          }
+
+          for (List<ContextMenuItemCommand> command2
+              in contextMenuConfiguration!.items.map((e) => e.commands)) {
+            if (command2.any((element) =>
+                element.clsid == command.clsid &&
+                element.customDllPath != command.customDllPath)) {
+              throw 'Context menu command clsid must be unique for each class, but found duplicate.\nClsid: ${command.clsid} with different dll path: ${command.customDllPath ?? contextMenuConfiguration!.dllPath} and ${command2.firstWhere((element) => element.id == command.id).customDllPath}';
+            }
+          }
+        }
+      }
     }
   }
 
@@ -284,9 +389,11 @@ class Configuration {
       ..addOption('identity-name', abbr: 'i')
       ..addOption('publisher', abbr: 'b')
       ..addOption('logo-path', abbr: 'l')
+      ..addOption('os-min-version')
       ..addOption('output-path', abbr: 'o')
       ..addOption('output-name', abbr: 'n')
       ..addOption('signtool-options')
+      ..addOption('windows-build-args')
       ..addOption('protocol-activation')
       ..addOption('execution-alias')
       ..addOption('file-extension', abbr: 'f')
@@ -310,17 +417,44 @@ class Configuration {
       ..addFlag('automatic-background-task')
       ..addFlag('update-blocks-activation')
       ..addFlag('show-prompt')
-      ..addFlag('force-update-from-any-version');
+      ..addFlag('force-update-from-any-version')
+      ..addFlag('skip-context-menu');
 
     // exclude -v (verbose) from the arguments
     _args = parser.parse(args.where((arg) => arg != '-v'));
+  }
+
+  Future<String> _getBuildFilesFolder() async {
+    final String buildFilesFolderStart =
+        buildFilesFolder.substring(0, buildFilesFolder.lastIndexOf('runner'));
+    final String buildFilesFolderArchitecture =
+        p.join(buildFilesFolderStart, architecture);
+    final String buildFilesFolderEnd =
+        buildFilesFolder.substring(buildFilesFolder.lastIndexOf('runner'));
+
+    if (architecture == 'arm64' &&
+        !(await Directory(buildFilesFolderArchitecture).exists())) {
+      _logger.stderr(
+          'cannot find arm64 build folder at: $buildFilesFolderArchitecture');
+      exit(-1);
+    }
+
+    if (await Directory(p.join(buildFilesFolderArchitecture, 'runner'))
+        .exists()) {
+      return p.join(buildFilesFolderStart, architecture, buildFilesFolderEnd);
+    } else {
+      return p.join(buildFilesFolderStart, buildFilesFolderEnd);
+    }
   }
 
   Future<void> validateAppInstallerConfigValues() async {
     _logger.trace('validating app installer config values');
 
     if (publishFolderPath.isNullOrEmpty ||
-        !await Directory(publishFolderPath!).exists()) {
+        (!await Directory(publishFolderPath!).exists() &&
+            !await Directory(publishFolderPath =
+                    '${Directory.current.path}\\${publishFolderPath!}')
+                .exists())) {
       _logger.stderr(
           'publish folder path is not exists, check "app_installer: publish_folder_path" at pubspec.yaml'
               .red);
@@ -337,11 +471,21 @@ class Configuration {
       throw 'Failed to locate or read package config.';
     }
 
-    Package msixPackage =
-        packagesConfig.packages.firstWhere((package) => package.name == "msix");
+    Package? msixPackage = packagesConfig['msix'];
+
+    // Locate package config from script file directory
+    if (msixPackage == null) {
+      final scriptFile = File.fromUri(Platform.script);
+      packagesConfig = await findPackageConfig(scriptFile.parent);
+      msixPackage = packagesConfig?['msix'];
+    }
+
+    if (msixPackage == null) {
+      throw 'Failed to locate msix assets path.';
+    }
+
     String path =
-        msixPackage.packageUriRoot.toString().replaceAll('file:///', '') +
-            'assets';
+        '${msixPackage.packageUriRoot.toString().replaceAll('file:///', '')}assets';
 
     msixAssetsPath = Uri.decodeFull(path);
   }
@@ -400,4 +544,31 @@ class Configuration {
               .replaceAll(':', ''))
           .where((protocol) => protocol.isNotEmpty) ??
       [];
+}
+
+/// A more advanced version of 'enable_at_startup'.
+class StartupTask {
+  /// Identifier to enable / disable programmatically
+  final String taskId;
+
+  /// If true, then autostart is enabled by default
+  final bool enabled;
+
+  /// Parameters separated by space.
+  /// This is useful to detect if the app was started automatically.
+  final String? parameters;
+
+  StartupTask({
+    required this.taskId,
+    required this.enabled,
+    required this.parameters,
+  });
+
+  factory StartupTask.fromMap(Map map, String appName) {
+    return StartupTask(
+      taskId: map['task_id'] ?? appName.replaceAll('_', ''),
+      enabled: map['enabled'] ?? true,
+      parameters: map['parameters'],
+    );
+  }
 }

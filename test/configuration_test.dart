@@ -1,11 +1,13 @@
 import 'dart:io';
+import 'package:msix/src/context_menu_configuration.dart';
+import 'package:path/path.dart' as p;
 import 'package:cli_util/cli_logging.dart';
 import 'package:get_it/get_it.dart';
 import 'package:msix/src/configuration.dart';
 import 'package:test/test.dart';
 
-const tempFolderPath = 'test/configuration_temp';
-const yamlTestPath = '$tempFolderPath/test.yaml';
+var tempFolderPath = p.join('test', 'runner', 'configuration_temp');
+var yamlTestPath = p.join(tempFolderPath, 'test.yaml');
 
 void main() {
   late Configuration config;
@@ -25,14 +27,14 @@ msix_config:
 
     GetIt.I.registerSingleton<Configuration>(config);
 
-    await Directory('$tempFolderPath/').create(recursive: true);
+    await Directory(tempFolderPath).create(recursive: true);
   });
 
   tearDown(() async {
     GetIt.I.reset();
 
-    if (await Directory('$tempFolderPath/').exists()) {
-      await Directory('$tempFolderPath/').delete(recursive: true);
+    if (await Directory(tempFolderPath).exists()) {
+      await Directory(tempFolderPath).delete(recursive: true);
     }
   });
 
@@ -64,7 +66,7 @@ msix_config:
 
   test('valid description', () async {
     await File(yamlTestPath)
-        .writeAsString('description: description123' + yamlContent);
+        .writeAsString('description: description123$yamlContent');
     await config.getConfigValues();
     expect(config.appDescription, 'description123');
   });
@@ -72,14 +74,14 @@ msix_config:
   group('msix version:', () {
     test('valid version in yaml', () async {
       await File(yamlTestPath)
-          .writeAsString(yamlContent + 'msix_version: 1.2.3.4');
+          .writeAsString('${yamlContent}msix_version: 1.2.3.4');
       await config.getConfigValues();
       expect(config.msixVersion, '1.2.3.4');
     });
 
     test('invalid version letter in yaml', () async {
       await File(yamlTestPath)
-          .writeAsString(yamlContent + 'msix_version: 1.s.3.4');
+          .writeAsString('${yamlContent}msix_version: 1.s.3.4');
       await config.getConfigValues();
       await expectLater(
           config.validateConfigValues,
@@ -89,7 +91,7 @@ msix_config:
 
     test('invalid version space in yaml', () async {
       await File(yamlTestPath)
-          .writeAsString(yamlContent + 'msix_version: 1.s. 3.4');
+          .writeAsString('${yamlContent}msix_version: 1.s. 3.4');
       await config.getConfigValues();
       await expectLater(
           config.validateConfigValues,
@@ -165,10 +167,10 @@ msix_config:
 
   group('certificate:', () {
     test('exited certificate path with password', () async {
-      const pfxTestPath = '$tempFolderPath/test.pfx';
+      var pfxTestPath = p.join(tempFolderPath, 'test.pfx');
       await File(pfxTestPath).create();
-      await File(yamlTestPath).writeAsString(yamlContent +
-          '''certificate_path: $pfxTestPath  
+      await File(yamlTestPath)
+          .writeAsString('''${yamlContent}certificate_path: $pfxTestPath  
   certificate_password: 1234''');
       await config.getConfigValues();
       expect(config.certificatePath, pfxTestPath);
@@ -176,7 +178,7 @@ msix_config:
 
     test('invalid certificate path', () async {
       await File(yamlTestPath).writeAsString(
-          yamlContent + 'certificate_path: $tempFolderPath/test123.pfx');
+          '${yamlContent}certificate_path: $tempFolderPath/test123.pfx');
       await config.getConfigValues();
       await expectLater(
           config.validateConfigValues,
@@ -185,15 +187,85 @@ msix_config:
     });
 
     test('certificate without password', () async {
-      const pfxTestPath = '$tempFolderPath/test.pfx';
+      var pfxTestPath = p.join(tempFolderPath, 'test.pfx');
       await File(pfxTestPath).create();
       await File(yamlTestPath)
-          .writeAsString(yamlContent + 'certificate_path: $pfxTestPath');
+          .writeAsString('${yamlContent}certificate_path: $pfxTestPath');
       await config.getConfigValues();
       await expectLater(
           config.validateConfigValues,
           throwsA(predicate((String error) =>
               error.contains('Certificate password is empty'))));
+    });
+  });
+
+  group('context menu:', () {
+    late File fakeContextMenuDll;
+    late File fakeContextMenuDll2;
+    const String testGuid = 'ba40803c-736a-41f0-ba7c-cdb3eaed7496';
+    const String testGuid2 = 'ba40803c-736a-41f0-ba7c-cdb3eaed7497';
+
+    setUp(() async {
+      fakeContextMenuDll = await File(p.join(tempFolderPath, 'test.dll'))
+          .create(recursive: true);
+
+      fakeContextMenuDll2 = await File(p.join(tempFolderPath, 'test2.dll'))
+          .create(recursive: true);
+    });
+
+    tearDown(() async {
+      if (await fakeContextMenuDll.exists()) {
+        await fakeContextMenuDll.delete();
+      }
+
+      if (await fakeContextMenuDll2.exists()) {
+        await fakeContextMenuDll2.delete();
+      }
+    });
+
+    test('valid context menu', () async {
+      await File(yamlTestPath).writeAsString('''${yamlContent}context_menu:
+    dll_path: ${fakeContextMenuDll.path}
+    items:
+      - type: "*"
+        commands:
+          - id: command1
+            clsid: $testGuid
+      - type: .png
+        commands:
+          - id: command1
+            clsid: $testGuid2
+            custom_dll: ${fakeContextMenuDll2.path}''');
+      await config.getConfigValues();
+      await config.validateConfigValues();
+
+      expect(
+          config.contextMenuConfiguration?.items.map((e) => e.toString()),
+          containsAll([
+            ContextMenuItem(type: '*', commands: [
+              ContextMenuItemCommand(id: 'command1', clsid: testGuid)
+            ]).toString(),
+            ContextMenuItem(type: '.png', commands: [
+              ContextMenuItemCommand(
+                  id: 'command1',
+                  clsid: testGuid2,
+                  customDllPath: fakeContextMenuDll2.path),
+            ]).toString()
+          ]));
+
+      expect(
+          config.contextMenuConfiguration?.comSurrogateServers
+              .map((e) => e.toString()),
+          containsAll([
+            ContextMenuComSurrogateServer(
+              clsid: testGuid,
+              dllPath: fakeContextMenuDll.path,
+            ).toString(),
+            ContextMenuComSurrogateServer(
+              clsid: testGuid2,
+              dllPath: fakeContextMenuDll2.path,
+            ).toString()
+          ]));
     });
   });
 }
