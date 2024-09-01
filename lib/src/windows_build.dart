@@ -22,12 +22,9 @@ class WindowsBuild {
     var flutterPath = await _getFlutterPath();
     if (_config.dartDefines?.isNotEmpty ?? false) {
       for (String x in _config.dartDefines!) {
-        buildWindowsArguments.add('--dart-define=' + x);
+        flutterBuildArgs.add('--dart-define=' + x);
       }
     }
-
-    Progress loggerProgress = _logger
-        .progress('running "flutter ${buildWindowsArguments.join(' ')}"');
 
     final Progress loggerProgress =
         _logger.progress('running "flutter ${flutterBuildArgs.join(' ')}"');
