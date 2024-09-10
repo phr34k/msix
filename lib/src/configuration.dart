@@ -18,6 +18,7 @@ class Configuration {
   final Logger _logger = GetIt.I<Logger>();
   late ArgResults _args;
   String msixAssetsPath = '';
+  String? msixMakeAppxPath;
   String? appName;
   String? publisherName;
   String? identityName;
@@ -90,6 +91,8 @@ class Configuration {
     outputPath = _args['output-path'] ?? yaml['output_path'];
     outputName = _args['output-name'] ?? yaml['output_name'];
     executionAlias = _args['execution-alias'] ?? yaml['execution_alias'];
+    msixMakeAppxPath = _args['make-appx'];
+
     if (_args['sign-msix'].toString() == 'false' ||
         yaml['sign_msix']?.toString().toLowerCase() == 'false') {
       signMsix = false;
@@ -119,7 +122,6 @@ class Configuration {
     logoPath = _args['logo-path'] ?? yaml['logo_path'];
     osMinVersion =
         _args['os-min-version'] ?? yaml['os_min_version'] ?? osMinVersion;
-
 
     print(_args['dart-define']);
     dartDefines = _args['dart-define'];

@@ -13,7 +13,7 @@ class MakeAppx {
   Future<void> pack() async {
     _logger.trace('packing');
 
-    String makeAppxPath = p.join(_config.msixToolkitPath, 'makeappx.exe');
+    String makeAppxPath = p.join(config.msixMakeAppxPath ?? _config.msixToolkitPath, 'makeappx.exe');
 
     // ignore: avoid_single_cascade_in_expression_statements
     await Process.run(makeAppxPath, [
