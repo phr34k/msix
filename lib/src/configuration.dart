@@ -414,6 +414,7 @@ class Configuration {
       ..addOption('hours-between-update-checks')
       ..addOption('build-windows')
       ..addOption('app-uri-handler-hosts')
+      ..addOption('make-appx')
       ..addFlag('store')
       ..addFlag('enable-at-startup')
       ..addFlag('debug')
