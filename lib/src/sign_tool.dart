@@ -235,18 +235,21 @@ class SignTool {
       signtoolOptions.addAll(['/tr', 'http://timestamp.digicert.com']);
     }
 
-    _logger.stdout('${signtoolOptions.join("\'")}');
-
     bool isFullSigntoolCommand =
         signtoolOptions[0].toLowerCase().contains('signtool');
 
-    // ignore: avoid_single_cascade_in_expression_statements
-    await Process.run(
-        isFullSigntoolCommand ? signtoolOptions[0] : signtoolPath, [
+    String exe = isFullSigntoolCommand ? signtoolOptions[0] : signtoolPath;
+    List<String> args = [
       if (!isFullSigntoolCommand) 'sign',
       ...signtoolOptions.skip(isFullSigntoolCommand ? 1 : 0),
       _config.msixPath,
-    ])
+    ];
+
+    _logger.stdout(exe);
+    _logger.stdout('${args.join("\'")}');
+
+    // ignore: avoid_single_cascade_in_expression_statements
+    await Process.run(exe, args)
       ..exitOnError();
   }
 
