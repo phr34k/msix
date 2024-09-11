@@ -204,7 +204,8 @@ class SignTool {
   Future<void> sign() async {
     _logger.trace('signing');
 
-    String signtoolPath = p.join(_config.msixToolkitPath, 'signtool.exe');
+    String signtoolPath = p.join(
+        _config.msixMakeAppxPath ?? _config.msixToolkitPath, 'signtool.exe');
     List<String> signtoolOptions = _config.signToolOptions ?? ['/v'];
 
     if (isCustomSignCommand(_config.signToolOptions)) {
@@ -233,6 +234,8 @@ class SignTool {
 
       signtoolOptions.addAll(['/tr', 'http://timestamp.digicert.com']);
     }
+
+    _logger.stdout('${signtoolOptions.join("\'")}');
 
     bool isFullSigntoolCommand =
         signtoolOptions[0].toLowerCase().contains('signtool');
